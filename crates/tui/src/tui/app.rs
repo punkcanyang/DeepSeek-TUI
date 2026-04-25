@@ -14,6 +14,7 @@ use crate::core::coherence::CoherenceState;
 use crate::hooks::{HookContext, HookEvent, HookExecutor, HookResult};
 use crate::models::{
     Message, SystemPrompt, compaction_message_threshold_for_model, compaction_threshold_for_model,
+    compaction_threshold_for_model_and_effort,
 };
 use crate::palette::{self, UiTheme};
 use crate::settings::Settings;
@@ -622,7 +623,10 @@ impl App {
         let max_input_history = settings.max_input_history;
         let ui_theme = palette::ui_theme(&settings.theme);
         let model = settings.default_model.clone().unwrap_or(model);
-        let compact_threshold = compaction_threshold_for_model(&model);
+        let compact_threshold = compaction_threshold_for_model_and_effort(
+            &model,
+            config.reasoning_effort(),
+        );
 
         // Start in YOLO mode if --yolo flag was passed
         let preferred_mode = AppMode::from_setting(&settings.default_mode);
@@ -1390,7 +1394,10 @@ impl App {
     }
 
     pub fn update_model_compaction_budget(&mut self) {
-        self.compact_threshold = compaction_threshold_for_model(&self.model);
+        self.compact_threshold = compaction_threshold_for_model_and_effort(
+            &self.model,
+            self.reasoning_effort.api_value(),
+        );
     }
 
     pub fn compaction_config(&self) -> CompactionConfig {
