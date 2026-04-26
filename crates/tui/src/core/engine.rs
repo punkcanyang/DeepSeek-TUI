@@ -263,12 +263,13 @@ const STREAM_CHUNK_TIMEOUT_SECS: u64 = 90;
 const STREAM_MAX_CONTENT_BYTES: usize = 10 * 1024 * 1024; // 10 MB
 /// Maximum wall-clock duration for a single streaming response.
 const STREAM_MAX_DURATION_SECS: u64 = 300; // 5 minutes
-/// Max output tokens requested for normal agent turns. Bumped from 4096 to
-/// 32768: V4 thinking models can consume 8-15K reasoning tokens on hard
-/// prompts; the old 4K ceiling exhausted the budget, the API closed the
-/// SSE stream with `finish_reason: "length"`, and the visible reply ended
-/// up empty (surfaced as the assistant "stopping mid-response").
-const TURN_MAX_OUTPUT_TOKENS: u32 = 32768;
+/// Max output tokens requested for normal agent turns. Generous on purpose:
+/// V4 thinking models can produce tens of thousands of reasoning tokens on
+/// hard prompts before the visible reply, and DeepSeek V4 ships with a 1M
+/// context window. 256K leaves the model effectively unconstrained on
+/// output without us imposing artificial per-turn caps that surfaced as the
+/// assistant "stopping mid-response" when reasoning consumed the budget.
+const TURN_MAX_OUTPUT_TOKENS: u32 = 262_144;
 /// Keep this many most recent messages when emergency trimming is required.
 const MIN_RECENT_MESSAGES_TO_KEEP: usize = 4;
 /// Allow a few emergency recovery attempts before failing the turn.

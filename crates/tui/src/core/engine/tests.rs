@@ -260,9 +260,12 @@ fn detects_context_length_errors_from_provider_payloads() {
 
 #[test]
 fn context_budget_reserves_output_and_headroom() {
-    let budget = context_input_budget("deepseek-v3.2-128k", TURN_MAX_OUTPUT_TOKENS)
-        .expect("deepseek models should have known context window");
-    let expected = 128_000usize - (TURN_MAX_OUTPUT_TOKENS as usize) - 1_024usize;
+    // V4 has a 1M context window — the only family that comfortably hosts
+    // a 256K output reservation without saturating the input budget to 0.
+    let budget = context_input_budget("deepseek-v4-pro", TURN_MAX_OUTPUT_TOKENS)
+        .expect("deepseek-v4-pro should have a known context window");
+    let v4_window: usize = 1_000_000;
+    let expected = v4_window - (TURN_MAX_OUTPUT_TOKENS as usize) - 1_024usize;
     assert_eq!(budget, expected);
 }
 

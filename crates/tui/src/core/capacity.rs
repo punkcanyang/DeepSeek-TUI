@@ -28,17 +28,18 @@ impl Default for CapacityControllerConfig {
         model_priors.insert("deepseek_v4_flash".to_string(), 4.2);
 
         Self {
-            enabled: true,
-            // Tuning history (#63 follow-up): the previous defaults
-            // (low_risk_max=0.34, refresh_cooldown_turns=2, min_turns=2)
-            // fired `TargetedContextRefresh` every couple of turns whenever
-            // p_fail crept above 0.34. Each refresh runs `compact_messages_safe`
-            // which rewrites the conversation history — visually that looked
-            // like the agent "restarting" mid-session. Bumping the floor to
-            // 0.50 (still well below the medium ceiling of 0.62) and
-            // lengthening the cooldown to 6 turns reduces interventions
-            // ~3-4x without disabling the controller; it keeps firing on
-            // genuine risk while ignoring routine noise.
+            // OFF BY DEFAULT. The capacity controller's main intervention,
+            // `TargetedContextRefresh`, runs `compact_messages_safe` which
+            // rewrites the live conversation — visually identical to the
+            // agent "restarting" mid-turn. Power users running V4 on a 1M
+            // context window simply don't need this guardrail; the failure
+            // mode it protects against (context overflow) is rare in
+            // practice and self-correcting (the model surfaces a clear
+            // error). Users who do want the controller back can enable it
+            // via `capacity.enabled = true` in `~/.deepseek/config.toml`.
+            enabled: false,
+            // Thresholds retained for the opt-in path; tuning notes live
+            // in git history (#63 follow-up).
             low_risk_max: 0.50,
             medium_risk_max: 0.62,
             severe_min_slack: -0.25,
@@ -693,7 +694,13 @@ mod tests {
 
     #[test]
     fn cooldown_blocks_repeated_action() {
-        let mut controller = CapacityController::new(CapacityControllerConfig::default());
+        // Capacity controller is opt-in (off by default since v0.6.2). This
+        // test exercises the cooldown logic, so explicitly enable it.
+        let config = CapacityControllerConfig {
+            enabled: true,
+            ..CapacityControllerConfig::default()
+        };
+        let mut controller = CapacityController::new(config);
         let turn_index = 5;
         controller.mark_turn_start(turn_index);
         controller.mark_intervention_applied(turn_index, GuardrailAction::TargetedContextRefresh);
