@@ -291,29 +291,53 @@ fn render_sidebar_subagents(f: &mut Frame, area: Rect, app: &App) {
     let content_width = area.width.saturating_sub(4) as usize;
     let mut lines: Vec<Line<'static>> = Vec::with_capacity(usize::from(area.height).max(4));
 
-    if app.subagent_cache.is_empty() {
+    // The footer's `running_agent_count` takes the union of `agent_progress`
+    // (live engine progress events) and `subagent_cache` (the snapshot that
+    // arrives async via `Op::ListSubAgents`). When 5 agents are spawning, the
+    // footer chip says "5 agents" because progress events update immediately,
+    // but `subagent_cache` is empty until the engine responds — so the
+    // sidebar would say "No agents" while the footer says 5 (#63).
+    //
+    // Mirror the footer's union here. Cached entries get the full status
+    // line; progress-only IDs get a single "starting…" row using the latest
+    // progress message, so the sidebar matches the footer in real time.
+    let cached_ids: std::collections::HashSet<&str> = app
+        .subagent_cache
+        .iter()
+        .map(|agent| agent.agent_id.as_str())
+        .collect();
+    let progress_only: Vec<(&str, &str)> = app
+        .agent_progress
+        .iter()
+        .filter(|(id, _)| !cached_ids.contains(id.as_str()))
+        .map(|(id, msg)| (id.as_str(), msg.as_str()))
+        .collect();
+
+    if app.subagent_cache.is_empty() && progress_only.is_empty() {
         lines.push(Line::from(Span::styled(
             "No agents",
             Style::default().fg(palette::TEXT_MUTED),
         )));
     } else {
-        let running = app
+        let cached_running = app
             .subagent_cache
             .iter()
             .filter(|agent| matches!(agent.status, SubAgentStatus::Running))
             .count();
-        let done = app.subagent_cache.len().saturating_sub(running);
+        let live_running = cached_running + progress_only.len();
+        let total = app.subagent_cache.len() + progress_only.len();
+        let done = total.saturating_sub(live_running);
         // When agents have all finished, "0 running / 1" reads as broken.
         // Switch to "1 done" once nothing is in flight; only show the
         // running/total split while activity is live.
-        let header = if running > 0 {
+        let header = if live_running > 0 {
             vec![
                 Span::styled(
-                    format!("{running} running"),
+                    format!("{live_running} running"),
                     Style::default().fg(palette::DEEPSEEK_SKY).bold(),
                 ),
                 Span::styled(
-                    format!(" / {}", app.subagent_cache.len()),
+                    format!(" / {total}"),
                     Style::default().fg(palette::TEXT_MUTED),
                 ),
             ]
@@ -327,7 +351,32 @@ fn render_sidebar_subagents(f: &mut Frame, area: Rect, app: &App) {
 
         let usable_rows = area.height.saturating_sub(3) as usize;
         let max_agents = usable_rows.saturating_sub(lines.len());
-        for agent in app.subagent_cache.iter().take(max_agents) {
+
+        // Live (progress-only) agents first — they're the freshest signal.
+        let mut rendered = 0usize;
+        for (id, msg) in progress_only.iter().take(max_agents) {
+            let summary = format!(
+                "{} starting",
+                truncate_line_to_width(id, 10),
+            );
+            lines.push(Line::from(Span::styled(
+                truncate_line_to_width(&summary, content_width.max(1)),
+                Style::default().fg(palette::STATUS_WARNING),
+            )));
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "  {}",
+                    truncate_line_to_width(msg, content_width.saturating_sub(2).max(1))
+                ),
+                Style::default().fg(palette::TEXT_DIM),
+            )));
+            rendered += 1;
+        }
+
+        // Then the cached snapshot for everything that's already settled into
+        // `subagent_cache`.
+        let remaining_budget = max_agents.saturating_sub(rendered);
+        for agent in app.subagent_cache.iter().take(remaining_budget) {
             let (status_label, status_color) = match &agent.status {
                 SubAgentStatus::Running => ("running", palette::STATUS_WARNING),
                 SubAgentStatus::Completed => ("done", palette::STATUS_SUCCESS),
@@ -356,9 +405,10 @@ fn render_sidebar_subagents(f: &mut Frame, area: Rect, app: &App) {
                 ),
                 Style::default().fg(palette::TEXT_DIM),
             )));
+            rendered += 1;
         }
 
-        let remaining = app.subagent_cache.len().saturating_sub(max_agents);
+        let remaining = total.saturating_sub(rendered);
         if remaining > 0 {
             lines.push(Line::from(Span::styled(
                 format!("+{remaining} more agents"),
