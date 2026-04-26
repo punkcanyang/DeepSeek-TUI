@@ -56,7 +56,8 @@ impl ToolSpec for RlmQueryTool {
          and return the joined results. Pass `prompts: [...]` for a parallel batch or \
          `prompt` for a single child. Children run in isolation with an optional shared \
          `system` prompt; results come back as `[i] <text>` blocks separated by `---` (or \
-         just the text for N=1). Read-only — no file or shell side-effects."
+         just the text for N=1). Max 16 children per call (each is a one-shot flash query; \
+         use agent_spawn for full multi-turn sub-agents). Read-only — no file or shell side-effects."
     }
 
     fn input_schema(&self) -> Value {
@@ -70,7 +71,7 @@ impl ToolSpec for RlmQueryTool {
                 "prompts": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "Up to 16 prompts to run concurrently. Returns indexed `[0] ... [N-1]` blocks."
+                    "description": "Up to 16 prompts to run concurrently (each is a one-shot flash query). Returns indexed `[0] ... [N-1]` blocks."
                 },
                 "model": {
                     "type": "string",

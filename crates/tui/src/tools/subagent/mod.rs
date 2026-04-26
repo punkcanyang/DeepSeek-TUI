@@ -649,7 +649,7 @@ impl SubAgentManager {
 
         if self.running_count() >= self.max_agents {
             return Err(anyhow!(
-                "Sub-agent limit reached (max {}, running {}). Cancel, close, or wait for an existing agent to finish.",
+                "Sub-agent limit reached (max {}, running {}). Cancel, close, or wait for an existing agent to finish. Consider rlm_query (max 16 children) for parallel one-shot queries instead.",
                 self.max_agents,
                 self.running_count()
             ));
@@ -757,7 +757,7 @@ impl SubAgentManager {
 
         if self.running_count() >= self.max_agents {
             return Err(anyhow!(
-                "Sub-agent limit reached (max {}, running {}). Close or wait for an existing agent before resuming.",
+                "Sub-agent limit reached (max {}, running {}). Close or wait for an existing agent before resuming. Consider rlm_query (max 16 children) for parallel one-shot queries instead.",
                 self.max_agents,
                 self.running_count()
             ));
@@ -1067,7 +1067,9 @@ impl ToolSpec for AgentSpawnTool {
 
     fn description(&self) -> &'static str {
         "Spawn a background sub-agent for a focused task. Returns an agent_id immediately; \
-         follow with agent_result to retrieve the final result."
+         follow with agent_result to retrieve the final result. Max 5 in flight (each is a \
+         full sub-agent loop; cancel or wait if you hit the cap). For parallel one-shot LLM \
+         queries (cheaper, up to 16 children per call), use rlm_query instead."
     }
 
     fn input_schema(&self) -> Value {

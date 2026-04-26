@@ -69,6 +69,22 @@ tools (`agent_result` / `swarm_result` / `wait` / `send_input` /
 `report_agent_job_result` / `swarm_status`). See `agent.txt` for the
 delegation protocol.
 
+### Parallel fan-out: cost-class caps
+
+Two tools offer parallel fan-out with different concurrency limits that
+reflect very different cost classes:
+
+| Tool | What each child does | Wall-clock | Token cost | Cap |
+|---|---|---|---|---|
+| `agent_spawn` | Full sub-agent loop (planning, tool calls, multi-turn streaming, can spawn children) | minutes | thousands of tokens | 5 in flight |
+| `rlm_query` | One-shot non-streaming Chat Completions call to `deepseek-v4-flash` | seconds | ~hundreds of tokens | 16 per call |
+
+The caps appear in each tool's description and error messages so the model
+(and the user) can choose the right tool for the job. If one sub-agent is
+enough but you need parallel lookups, prefer `rlm_query`; if each task needs
+its own tool-carrying agent loop, use `agent_spawn` (and cancel completed
+ones to free slots).
+
 ## Recently consolidated (v0.5.1)
 
 Removed from the prompt as duplicates of equivalent tools (the underlying
